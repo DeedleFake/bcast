@@ -8,7 +8,7 @@ import (
 )
 
 func TestBroadcast(t *testing.T) {
-	bc := bcast.New()
+	var bc bcast.Broadcast
 
 	tester := func(n int) {
 		c := make(chan interface{})

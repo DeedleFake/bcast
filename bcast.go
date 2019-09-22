@@ -4,7 +4,15 @@ import (
 	"sync"
 )
 
+// Broadcast is a N:M channel-based broadcaster. It allows for
+// event-like broadcasts of arbitrary data to multiple receivers
+// simultaneously, with guarantees on ordering and receipt.
+//
+// The zero-value is valid and ready for use, but clients should make
+// sure that they don't use multiple copies of the same instance.
 type Broadcast struct {
+	initOnce sync.Once
+
 	cancel sync.Once
 	done   chan struct{}
 
@@ -13,17 +21,16 @@ type Broadcast struct {
 	broadcast chan interface{}
 }
 
-func New() *Broadcast {
-	bc := &Broadcast{
-		done: make(chan struct{}),
+func (bc *Broadcast) init() {
+	bc.initOnce.Do(func() {
+		bc.done = make(chan struct{})
 
-		listen:    make(chan chan<- interface{}),
-		stop:      make(chan chan<- interface{}),
-		broadcast: make(chan interface{}),
-	}
-	go bc.coord()
+		bc.listen = make(chan chan<- interface{})
+		bc.stop = make(chan chan<- interface{})
+		bc.broadcast = make(chan interface{})
 
-	return bc
+		go bc.coord()
+	})
 }
 
 func (bc *Broadcast) coord() {
@@ -57,6 +64,8 @@ func (bc *Broadcast) coord() {
 }
 
 func (bc *Broadcast) Listen(c chan<- interface{}) (stop func()) {
+	bc.init()
+
 	bc.listen <- c
 	return func() {
 		select {
@@ -67,10 +76,14 @@ func (bc *Broadcast) Listen(c chan<- interface{}) (stop func()) {
 }
 
 func (bc *Broadcast) Send() chan<- interface{} {
+	bc.init()
+
 	return bc.broadcast
 }
 
 func (bc *Broadcast) Stop() {
+	bc.init()
+
 	bc.cancel.Do(func() {
 		close(bc.done)
 	})
