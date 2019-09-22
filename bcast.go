@@ -5,9 +5,9 @@ import (
 	"sync"
 )
 
-// Broadcast is a N:M channel-based broadcaster. It allows for
+// Broadcast is an N:M channel-based broadcaster. It allows for
 // event-like broadcasts of arbitrary data to multiple receivers
-// simultaneously. The order that data is sent in is guarunteed to be
+// simultaneously. The order that data is sent in is guaranteed to be
 // received in that order by any listeners, but the order that the
 // listeners receive the data in relative to each other is not.
 //
@@ -70,7 +70,7 @@ func (bc *Broadcast) coord() {
 // broadcasts sent after this call will be replicated to c. The
 // returned function unregisters c.
 //
-// When a listening channel is done, either becuase the returned stop
+// When a listening channel is done, either because the returned stop
 // function was called or because the entire broadcaster was stopped,
 // it is closed.
 //
@@ -98,7 +98,7 @@ func (bc *Broadcast) Listen(c chan<- interface{}) (stop func()) {
 // listening channels. Sending to this channel will block if any
 // existing broadcasts are in progress. A broadcast is considered to
 // be in progress until all listening channels have been sent to
-// succesfully.
+// successfully.
 //
 // It is the callers responsibility to not send anything to the
 // channel returned by Send after the broadcaster has been stopped.
