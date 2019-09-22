@@ -1,3 +1,4 @@
+// Package bcast provides a simple N:M channel-based broadcaster.
 package bcast
 
 import (
