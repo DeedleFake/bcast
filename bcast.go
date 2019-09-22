@@ -24,6 +24,7 @@ type Broadcast struct {
 	broadcast chan interface{}
 }
 
+// init does lazy initialization of the Broadcast.
 func (bc *Broadcast) init() {
 	bc.initOnce.Do(func() {
 		bc.done = make(chan struct{})
@@ -36,6 +37,9 @@ func (bc *Broadcast) init() {
 	})
 }
 
+// coord runs the main coordinator of the broadcasting system. It
+// registers new listeners, deletes and closes listeners, and
+// broadcasts data to any existing listeners.
 func (bc *Broadcast) coord() {
 	listeners := make(map[chan<- interface{}]struct{})
 	defer func() {
