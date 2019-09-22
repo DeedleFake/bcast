@@ -1,7 +1,8 @@
 bcast
 =====
 
-[![GoDoc](http://www.godoc.org/github.com/DeedleFake/bcast?status.svg)](http://www.godoc.org/github.com/DeedleFake/bcast)
+[![GoDoc](http://godoc.org/github.com/DeedleFake/bcast?status.svg)](http://godoc.org/github.com/DeedleFake/bcast)
+[![Go Report Card](https://goreportcard.com/badge/github.com/DeedleFake/bcast)](https://goreportcard.com/report/github.com/DeedleFake/bcast)
 
 bcast is a simple N:M channel-based broadcasting system for Go. It attempts to be a generic stand-in for the lack of such capability with just plain channels.
 
