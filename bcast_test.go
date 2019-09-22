@@ -10,22 +10,18 @@ import (
 func TestBroadcast(t *testing.T) {
 	var bc bcast.Broadcast
 
-	tester := func(n int) {
-		c := make(chan interface{})
-		stop := bc.Listen(c)
-		defer stop()
-
-		for data := range c {
-			t.Logf("%v: %v", n, data)
-		}
-	}
-
 	var wg sync.WaitGroup
 	for i := 0; i < 3; i++ {
+		c := make(chan interface{})
+		bc.Listen(c)
+
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			tester(i)
+
+			for data := range c {
+				t.Logf("%v: %v", i, data)
+			}
 		}(i)
 	}
 
