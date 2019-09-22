@@ -1,73 +1,68 @@
 package bcast
 
 import (
-	"context"
+	"sync"
 )
 
 type Broadcast struct {
-	cancel context.CancelFunc
+	cancel sync.Once
+	done   chan struct{}
 
-	listen    chan listener
+	listen    chan chan<- interface{}
 	stop      chan chan<- interface{}
 	broadcast chan interface{}
 }
 
 func New() *Broadcast {
-	return WithContext(context.Background())
-}
-
-func WithContext(ctx context.Context) *Broadcast {
-	ctx, cancel := context.WithCancel(ctx)
-
 	bc := &Broadcast{
-		cancel: cancel,
+		done: make(chan struct{}),
 
-		listen:    make(chan listener),
+		listen:    make(chan chan<- interface{}),
 		stop:      make(chan chan<- interface{}),
 		broadcast: make(chan interface{}),
 	}
-	go bc.coord(ctx)
+	go bc.coord()
 
 	return bc
 }
 
-func (bc *Broadcast) coord(ctx context.Context) {
-	listeners := make(map[chan<- interface{}]context.CancelFunc)
+func (bc *Broadcast) coord() {
+	listeners := make(map[chan<- interface{}]struct{})
+	defer func() {
+		for c := range listeners {
+			close(c)
+		}
+	}()
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-bc.done:
 			return
 
-		case listener := <-bc.listen:
-			ctx, cancel := context.WithCancel(ctx)
-			listeners[listener.c] = cancel
-			listener.ctx <- ctx
+		case c := <-bc.listen:
+			listeners[c] = struct{}{}
 
-		case listener := <-bc.stop:
-			if cancel, ok := listeners[listener]; ok {
-				delete(listeners, listener)
-				cancel()
+		case c := <-bc.stop:
+			if _, ok := listeners[c]; ok {
+				delete(listeners, c)
+				close(c)
 			}
 
 		case data := <-bc.broadcast:
-			for listener := range listeners {
-				listener <- data
+			for c := range listeners {
+				c <- data
 			}
 		}
 	}
 }
 
 func (bc *Broadcast) Listen(c chan<- interface{}) (stop func()) {
-	ctx := make(chan<- context.Context, 1)
-
-	bc.listen <- listener{
-		c:   c,
-		ctx: ctx,
-	}
-
+	bc.listen <- c
 	return func() {
-		bc.stop <- c
+		select {
+		case <-bc.done:
+		case bc.stop <- c:
+		}
 	}
 }
 
@@ -76,10 +71,7 @@ func (bc *Broadcast) Send() chan<- interface{} {
 }
 
 func (bc *Broadcast) Stop() {
-	bc.cancel()
-}
-
-type listener struct {
-	c   chan<- interface{}
-	ctx chan<- context.Context
+	bc.cancel.Do(func() {
+		close(bc.done)
+	})
 }
