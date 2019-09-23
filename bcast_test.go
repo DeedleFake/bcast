@@ -8,28 +8,45 @@ import (
 )
 
 func TestBroadcast(t *testing.T) {
-	var bc bcast.Broadcast
-
-	var wg sync.WaitGroup
-	for i := 0; i < 3; i++ {
-		c := make(chan interface{})
-		bc.Listen(c)
-
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-
-			for data := range c {
-				t.Logf("%v: %v", i, data)
-			}
-		}(i)
+	tests := []struct {
+		name string
+		data []interface{}
+	}{
+		{
+			name: "Simple",
+			data: []interface{}{"this", "is", "a", "test"},
+		},
 	}
 
-	bc.Send() <- "this"
-	bc.Send() <- "is"
-	bc.Send() <- "a"
-	bc.Send() <- "test"
-	bc.Stop()
+	for _, test := range tests {
+		var bc bcast.Broadcast
 
-	wg.Wait()
+		var wg sync.WaitGroup
+		for i := 0; i < 3; i++ {
+			c := make(chan interface{})
+			bc.Listen(c)
+
+			wg.Add(1)
+			go func(n int) {
+				defer wg.Done()
+
+				var i int
+				for data := range c {
+					if data != test.data[i] {
+						t.Errorf("%v: data[%v] is %q, not %q", n, i, data, test.data[i])
+					}
+
+					i++
+				}
+			}(i)
+		}
+
+		send := bc.Send()
+		for _, data := range test.data {
+			send <- data
+		}
+		bc.Stop()
+
+		wg.Wait()
+	}
 }
