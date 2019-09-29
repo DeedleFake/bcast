@@ -19,7 +19,7 @@ type Broadcast struct {
 	cancel sync.Once
 	done   chan struct{}
 
-	listen    chan chan<- interface{}
+	listen    chan listener
 	stop      chan chan<- interface{}
 	broadcast chan interface{}
 }
@@ -29,7 +29,7 @@ func (bc *Broadcast) init() {
 	bc.initOnce.Do(func() {
 		bc.done = make(chan struct{})
 
-		bc.listen = make(chan chan<- interface{})
+		bc.listen = make(chan listener)
 		bc.stop = make(chan chan<- interface{})
 		bc.broadcast = make(chan interface{})
 
@@ -41,7 +41,7 @@ func (bc *Broadcast) init() {
 // registers new listeners, deletes and closes listeners, and
 // broadcasts data to any existing listeners.
 func (bc *Broadcast) coord() {
-	listeners := make(map[chan<- interface{}]struct{})
+	listeners := make(map[chan<- interface{}]<-chan struct{})
 	defer func() {
 		for c := range listeners {
 			close(c)
@@ -54,7 +54,7 @@ func (bc *Broadcast) coord() {
 			return
 
 		case c := <-bc.listen:
-			listeners[c] = struct{}{}
+			listeners[c.out] = c.done
 
 		case c := <-bc.stop:
 			if _, ok := listeners[c]; ok {
@@ -63,8 +63,11 @@ func (bc *Broadcast) coord() {
 			}
 
 		case data := <-bc.broadcast:
-			for c := range listeners {
-				c <- data
+			for c, stop := range listeners {
+				select {
+				case c <- data:
+				case <-stop:
+				}
 			}
 		}
 	}
@@ -85,16 +88,28 @@ func (bc *Broadcast) coord() {
 func (bc *Broadcast) Listen(c chan<- interface{}) (stop func()) {
 	bc.init()
 
-	select {
-	case <-bc.done:
-	case bc.listen <- c:
+	done := make(chan struct{})
+	lis := listener{
+		out:  c,
+		done: done,
 	}
 
+	select {
+	case <-bc.done:
+	case bc.listen <- lis:
+	}
+
+	var cancel sync.Once
+
 	return func() {
-		select {
-		case <-bc.done:
-		case bc.stop <- c:
-		}
+		cancel.Do(func() {
+			close(done)
+
+			select {
+			case <-bc.done:
+			case bc.stop <- c:
+			}
+		})
 	}
 }
 
@@ -120,4 +135,9 @@ func (bc *Broadcast) Stop() {
 	bc.cancel.Do(func() {
 		close(bc.done)
 	})
+}
+
+type listener struct {
+	out  chan<- interface{}
+	done <-chan struct{}
 }
